@@ -4,9 +4,32 @@ import cv2
 import math
 import os
 import time
+import requests
 import mediapipe as mp
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier
+
+# Configuration to connect with ESP32
+ESP32_IP = "192.168.4.1"
+ENDPOINT_URL = f"http://{ESP32_IP}/setColor"
+
+# Function to send color
+def send_color(hex_color):
+    # Simple validation
+    if not hex_color.startswith('#') or len(hex_color) != 7:
+        print("Error: The color must be in a valid format (ej: #RRGGBB).")
+        return
+
+    try:
+        # Send request as a POST with a timeout
+        response = requests.post(ENDPOINT_URL, data=hex_color, timeout=0.5)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        print(f"Timeout error '{hex_color}'. Verify the connection with ESP32.")
+    except requests.exceptions.ConnectionError:
+        print(f"Conexion error ESP32. Verify access point.")
+    except requests.exceptions.RequestException as e:
+        print(f"Error while changing the color '{hex_color}': {e}")
 
 # Function to normalize the distance between to points
 def distancia(p1, p2):
@@ -47,6 +70,11 @@ if __name__ == "__main__":
     last_prediction = None
     prediction_start_time = None
     DELAY_SECONDS = 5
+
+    # Variables for the ESP32
+    last_sent_hex_color = ""
+    last_sent_time = time.time()
+    SEND_INTERVAL_SECONDS = 0.1
 
     while True:
         ret, frame = cap.read()
@@ -133,8 +161,18 @@ if __name__ == "__main__":
         cv2.putText(frame, f"Color: {hex_color}", (100, 70),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
+        # Send hexadecimal value to ESP32
+        current_time_for_send = time.time()
+        if hex_color != last_sent_hex_color and (current_time_for_send - last_sent_time) >= SEND_INTERVAL_SECONDS:
+            send_color(hex_color)
+            last_sent_hex_color = hex_color
+            last_sent_time = current_time_for_send
+
+        # Show window
         cv2.imshow("Detector de Gestos", frame)
         if cv2.waitKey(1) & 0xFF == 27:
+            # Turn off LED
+            send_color("#000000")
             break
 
     cap.release()
