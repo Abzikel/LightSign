@@ -1,0 +1,13 @@
+# Python files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ignore dataset folder
+datasets/
+
+# Venv
+venv/
+.env/
+venv_test/
