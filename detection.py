@@ -8,7 +8,6 @@ import time
 import requests
 import mediapipe as mp
 import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier
 
 # Configuration to connect with ESP32
 ESP32_IP = "192.168.4.1"
@@ -183,7 +182,7 @@ if __name__ == "__main__":
                 last_sent_time = current_time_for_send
 
         # Show window
-        cv2.imshow("Detector de Gestos", frame)
+        cv2.imshow("Gesture Detector - Press ESC to exit", frame)
         if cv2.waitKey(1) & 0xFF == 27:
             # Turn off LED
             if is_connected:
