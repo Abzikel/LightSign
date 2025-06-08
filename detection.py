@@ -1,6 +1,7 @@
 # Import libraries
 import camera
 import cv2
+import joblib
 import math
 import os
 import time
@@ -12,6 +13,10 @@ from sklearn.ensemble import GradientBoostingClassifier
 # Configuration to connect with ESP32
 ESP32_IP = "192.168.4.1"
 ENDPOINT_URL = f"http://{ESP32_IP}/setColor"
+
+# Variables to verify the connectoin with ESP32
+connection_tries = 0
+is_connected = True
 
 # Function to send color
 def send_color(hex_color):
@@ -25,9 +30,17 @@ def send_color(hex_color):
         response = requests.post(ENDPOINT_URL, data=hex_color, timeout=0.5)
         response.raise_for_status()
     except requests.exceptions.Timeout:
+        # Get global variables
+        global connection_tries
+        global is_connected
+
+        # Verify connection tries
         print(f"Timeout error '{hex_color}'. Verify the connection with ESP32.")
+        connection_tries += 1
+        if connection_tries == 2:
+            is_connected = False
     except requests.exceptions.ConnectionError:
-        print(f"Conexion error ESP32. Verify access point.")
+        print(f"Connection error ESP32. Verify access point.")
     except requests.exceptions.RequestException as e:
         print(f"Error while changing the color '{hex_color}': {e}")
 
@@ -37,22 +50,22 @@ def distancia(p1, p2):
 
 # Main code
 if __name__ == "__main__":
-    # Load dataset and import it to a DataFrame
-    dataset_path = os.path.expanduser("gestures_dataset.csv")
-    df = pd.read_csv(dataset_path)
+    # Load trained model
+    model_path = "gesture_model.joblib"
+    if not os.path.exists(model_path):
+        # Verify the trained model exists
+        print(f"Error: The model file '{model_path}' was not found.")
+        print(f"Please execute 'train_mmodel.py' first to train and save the model.")
+        exit()
+    model = joblib.load(model_path)
 
-    # Separate characteristics from labels
-    X = df[[
+    # Define columns
+    model_columns = [
         "WRIST_X", "WRIST_Y",
         "THUMB_TIP_X", "THUMB_TIP_Y",
         "INDEX_TIP_X", "INDEX_TIP_Y",
         "MIDDLE_TIP_X", "MIDDLE_TIP_Y"
-    ]]
-    Y = df["label"]
-
-    # Train model using GradientBoosting
-    model = GradientBoostingClassifier()
-    model.fit(X, Y)
+    ]
 
     # MediaPipe setup
     mp_hands = mp.solutions.hands
@@ -69,7 +82,7 @@ if __name__ == "__main__":
     selected_channel = None
     last_prediction = None
     prediction_start_time = None
-    DELAY_SECONDS = 5
+    DELAY_SECONDS = 2
 
     # Variables for the ESP32
     last_sent_hex_color = ""
@@ -111,7 +124,7 @@ if __name__ == "__main__":
                     normalized.extend([x, y])
 
                 # Predict gesture
-                input_data = pd.DataFrame([normalized], columns=X.columns)
+                input_data = pd.DataFrame([normalized], columns = model_columns)
                 prediction = model.predict(input_data)[0]
 
                 # Gesture detection
@@ -162,17 +175,19 @@ if __name__ == "__main__":
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         # Send hexadecimal value to ESP32
-        current_time_for_send = time.time()
-        if hex_color != last_sent_hex_color and (current_time_for_send - last_sent_time) >= SEND_INTERVAL_SECONDS:
-            send_color(hex_color)
-            last_sent_hex_color = hex_color
-            last_sent_time = current_time_for_send
+        if is_connected:
+            current_time_for_send = time.time()
+            if hex_color != last_sent_hex_color and (current_time_for_send - last_sent_time) >= SEND_INTERVAL_SECONDS:
+                send_color(hex_color)
+                last_sent_hex_color = hex_color
+                last_sent_time = current_time_for_send
 
         # Show window
         cv2.imshow("Detector de Gestos", frame)
         if cv2.waitKey(1) & 0xFF == 27:
             # Turn off LED
-            send_color("#000000")
+            if is_connected:
+                send_color("#000000")
             break
 
     cap.release()
