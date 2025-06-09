@@ -44,7 +44,7 @@ def send_color(hex_color):
         print(f"Error while changing the color '{hex_color}': {e}")
 
 # Function to normalize the distance between to points
-def distancia(p1, p2):
+def distance(p1, p2):
     return math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
 
 # Main code
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
                 wrist = puntos['WRIST']
                 middle_mcp = puntos['MIDDLE_MCP']
-                d = distancia(wrist, middle_mcp)
+                d = distance(wrist, middle_mcp)
                 if d == 0:
                     d = 1e-6
 
